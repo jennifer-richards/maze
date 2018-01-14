@@ -1,12 +1,11 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='Maze',
     version='0.1',
-    packages=[
-        'maze',
-        'maze.resources'
-    ],
+    packages=find_packages(
+        exclude=['venv']
+    ),
     url='',
     license='',
     author='Jennifer Richards',
