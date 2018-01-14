@@ -188,8 +188,8 @@ def main():
         ax = fig.add_axes((0.02,0.02,0.96,0.96), aspect='equal', frameon=False)
 
         plot_maze(ax, mz,
-                  plt.imread(resource_stream('maze.resources.img', 'smiley.png')),
-                  plt.imread(resource_stream('maze.resources.img', 'end.png')))
+                  plt.imread(resource_stream('maze.resources.images', 'smiley.png')),
+                  plt.imread(resource_stream('maze.resources.images', 'end.png')))
 
         #ax.set_xlim(-0.005, 1.005)
         #ax.set_ylim(-0.005, 1.005)
