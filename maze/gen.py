@@ -78,7 +78,6 @@ def plot_maze(ax, mz, start_image=None, end_image=None):
     ax.get_yaxis().set_visible(False)
     ax.set_xticks([])
     ax.set_yticks([])
-    ax.hold(True)
 
     tile_width = 1
     tile_height = -1
@@ -189,7 +188,7 @@ def main():
 
         plot_maze(ax, mz,
                   plt.imread(resource_stream('maze.resources.images', 'smiley.png')),
-                  plt.imread(resource_stream('maze.resources.images', 'end.png')))
+                  plt.imread(resource_stream('maze.resources.images', 'target.png')))
 
         #ax.set_xlim(-0.005, 1.005)
         #ax.set_ylim(-0.005, 1.005)
