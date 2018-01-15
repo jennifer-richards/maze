@@ -268,6 +268,7 @@ class ProgressBar(tqdm):
             kwargs['desc'] = self._fix_desc_width(kwargs['desc'])
 
         kwargs.setdefault("bar_format", "{l_bar}{bar}") # change the default
+        kwargs.setdefault("leave", False)
         super(ProgressBar, self).__init__(*args, **kwargs)
 
     def _fix_desc_width(self, desc):
@@ -331,7 +332,12 @@ def main():
 
     plt.xkcd()
     pp=PdfPages('maze.pdf')
-    for nn in range(args.num):
+
+    for nn in ProgressBar(range(args.num),
+                          desc="Generating mazes",
+                          bar_format="{l_bar} Completed {n_fmt}/{total_fmt} at {rate_fmt}",
+                          leave=True,
+                          unit="mazes"):
         mz = maze.Maze(*args.maze_size)
         with ProgressBar(total=mz.total_cells(),
                          desc="Generating maze") as prog_bar:
