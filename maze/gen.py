@@ -6,16 +6,21 @@ from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from argparse import ArgumentParser
 from pkg_resources import resource_stream
 import papersize
+from tqdm import tqdm
 import maze
 
 
 def plot_maze(ax, mz, start_image=None, end_image=None):
     """Plot a maze."""
 
-    def _simplify_segments(s):
+    def _simplify_segments(s, progress_hook=None):
         """Reduce the number of individual lines."""
         ii=0
+        max_ii=0
         while ii < len(s):
+            if (ii>max_ii):
+                progress_hook(len(s)-max_ii)
+                max_ii=ii
             starts=[seg[0] for seg in s]
             ends=[seg[-1] for seg in s]
 
@@ -75,6 +80,8 @@ def plot_maze(ax, mz, start_image=None, end_image=None):
             except ValueError:
                 ii+=1
 
+        progress_hook(0)
+
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
     ax.set_xticks([])
@@ -86,55 +93,62 @@ def plot_maze(ax, mz, start_image=None, end_image=None):
     surf_height=mz.height*tile_height
 
     segments = []
-    # plot horizontal lines (no need to plot top line---that is
-    # the border)
-    for y in range(1,mz.height):
-        x0 = 0
-        line_active = False
-        for x in range(0, mz.width):
-            if (mz.grid[y][x] & mz.door["N"]) == 0:
-                # no door North; be sure a line is started
-                line_active = True
-            else:
-                # door North; draw a line if needed
-                if line_active:
-                    segments.append( [(x0*tile_width, y*tile_height),
-                                      (x*tile_width, y*tile_height)] )
-                    line_active = False
-                x0 = x+1
-        if line_active:
-            segments.append( [(x0*tile_width, y*tile_height),
-                              (surf_width, y*tile_height)] )
+    with ProgressBar(desc="Generating walls",
+                     total=mz.height+mz.width-2,
+                     mode="increment") as prog_bar:
+        # plot horizontal lines (no need to plot top line---that is
+        # the border)
+        for y in range(1,mz.height):
+            prog_bar.update()
+            x0 = 0
+            line_active = False
+            for x in range(0, mz.width):
+                if (mz.grid[y][x] & mz.door["N"]) == 0:
+                    # no door North; be sure a line is started
+                    line_active = True
+                else:
+                    # door North; draw a line if needed
+                    if line_active:
+                        segments.append( [(x0*tile_width, y*tile_height),
+                                          (x*tile_width, y*tile_height)] )
+                        line_active = False
+                    x0 = x+1
+            if line_active:
+                segments.append( [(x0*tile_width, y*tile_height),
+                                  (surf_width, y*tile_height)] )
 
-    # plot vertical lines (no need to plot left line---that is
-    # the border)
-    for x in range(1,mz.width):
-        y0 = 0
-        line_active = False
-        for y in range(0, mz.height):
-            if (mz.grid[y][x] & mz.door["W"]) == 0:
-                # no door West; be sure a line is started
-                line_active = True
-            else:
-                # door West; draw a line if needed
-                if line_active:
-                    segments.append( [(x*tile_width, y0*tile_height),
-                                      (x*tile_width, y*tile_height)] )
-                    line_active = False
-                y0 = y+1
-        if line_active:
-            segments.append( [(x*tile_width, y0*tile_height),
-                              (x*tile_width, surf_height)] )
+        # plot vertical lines (no need to plot left line---that is
+        # the border)
+        for x in range(1,mz.width):
+            prog_bar.update()
+            y0 = 0
+            line_active = False
+            for y in range(0, mz.height):
+                if (mz.grid[y][x] & mz.door["W"]) == 0:
+                    # no door West; be sure a line is started
+                    line_active = True
+                else:
+                    # door West; draw a line if needed
+                    if line_active:
+                        segments.append( [(x*tile_width, y0*tile_height),
+                                          (x*tile_width, y*tile_height)] )
+                        line_active = False
+                    y0 = y+1
+            if line_active:
+                segments.append( [(x*tile_width, y0*tile_height),
+                                  (x*tile_width, surf_height)] )
 
     segments.append( [(0, 0), (surf_width, 0)] )
     segments.append( [(surf_width, 0), (surf_width, surf_height)] )
     segments.append( [(0, 0), (0, surf_height)] )
     segments.append( [(0, surf_height), (surf_width, surf_height)] )
 
-    _simplify_segments(segments)
+    with ProgressBar(desc="Simplifying", total=len(segments)) as prog_bar:
+        _simplify_segments(segments, prog_bar.update)
+
     segments.sort(key=lambda x:len(x))
 
-    for seg in segments:
+    for seg in ProgressBar(segments, desc="Plotting walls"):
         x=[s[0] for s in seg]
         y=[s[1] for s in seg]
         ax.plot(x, y, 'k-')
@@ -142,8 +156,6 @@ def plot_maze(ax, mz, start_image=None, end_image=None):
     ax.set_ylim(surf_height+tile_height, -tile_height)
 
     if start_image is not None:
-#        plt.imshow(start_image, extent=(0,tile_width,
-#                                        tile_height, 0))
         img_width=start_image.shape[0]
         img_height=start_image.shape[1]
         zoom=50*min(abs(float(tile_width)/img_width),
@@ -242,7 +254,45 @@ def margins_to_scale(left, right, top, bottom, width, height):
             float(width-left-right)/width,
             float(height - top - bottom) / height]
 
+class ProgressBar(tqdm):
+    """ Progress bar updated by number of items remaining
+    """
+    desc_width = None
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("mode", "countdown")
+        self.mode=kwargs["mode"]
+        del(kwargs["mode"])
+
+        if kwargs.has_key('desc'):
+            kwargs['desc'] = self._fix_desc_width(kwargs['desc'])
+
+        kwargs.setdefault("bar_format", "{l_bar}{bar}") # change the default
+        super(ProgressBar, self).__init__(*args, **kwargs)
+
+    def _fix_desc_width(self, desc):
+        w = ProgressBar.desc_width
+        if (w is not None) and (len(desc) < w):
+            return desc + " "*(w - len(desc))
+        return desc
+
+    def update(self, n=1):
+        if self.mode=="countdown":
+            # In countdown mode, n is the number of iterations left
+            n = self.total - n - self.n
+        elif self.mode=="increment":
+            # In increment mode, n is the number of iterations completed since
+            # the last cal (i.e., the tqdm default)
+            pass
+        else:
+            raise ValueError("Unknown mode ({:s})".format(self.mode))
+
+        return super(ProgressBar, self).update(n)
+
+
 def main():
+    ProgressBar.desc_width = 16
+
     parser = ArgumentParser(description="Randomly generate a maze.")
     parser.add_argument("--maze-size", "-s",
                         type=parse_maze_size,
@@ -257,7 +307,7 @@ def main():
                         help="Paper size for output (e.g., '8.5in x 11in', 'A4'). "
                              "If dimensions are given, units default to points "
                              "if not specified. Default = %(default)s")
-    parser.add_argument("--margin", "-m",
+    parser.add_argument("--margins", "-m",
                         type=parse_margin,
                         dest="margins",
                         default="0.5in",
@@ -283,19 +333,19 @@ def main():
     pp=PdfPages('maze.pdf')
     for nn in range(args.num):
         mz = maze.Maze(*args.maze_size)
-        mz.generate(args.inertia)
+        with ProgressBar(total=mz.total_cells(),
+                         desc="Generating maze") as prog_bar:
+            mz.generate(args.inertia,
+                        lambda n_left: prog_bar.update(n_left))
 
         fig = plt.figure(figsize=args.paper_size, dpi=300)
         ax = fig.add_axes(
             margins_to_scale(*(args.margins + args.paper_size)),
             frameon=False)
 
-        plot_maze(ax, mz,
-                  plt.imread(resource_stream('maze.resources.images', 'smiley.png')),
-                  plt.imread(resource_stream('maze.resources.images', 'target.png')))
-
-        #ax.set_xlim(-0.005, 1.005)
-        #ax.set_ylim(-0.005, 1.005)
+        plot_maze(ax, mz)#,
+                  #plt.imread(resource_stream('maze.resources.images', 'smiley.png')),
+                  #plt.imread(resource_stream('maze.resources.images', 'target.png')))
 
         pp.savefig(fig)
     pp.close()

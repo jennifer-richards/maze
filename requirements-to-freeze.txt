@@ -1,2 +1,3 @@
 matplotlib
 PaperSize
+tqdm

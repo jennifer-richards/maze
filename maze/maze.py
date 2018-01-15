@@ -95,19 +95,34 @@ class Maze:
             if not self.out_of_bounds(nx, ny):
                 self.hunt_candidates[ny][nx] = True
 
+    def total_cells(self):
+        """ Total number of cells
+        :return: Number of cells in maze
+        """
+        return self.width * self.height
+
+    def unconnected_cells(self):
+        """ Number of unconnected cells
+        :return: Number of unconnected cells
+        """
+        return sum(sum(1 for c in row if c==0)
+                   for row in self.grid)
+
     #------------------------------
     # Maze generation routine
     #
-    def generate(self, inertia=0):
+    def generate(self, inertia=0, progress_hook=None):
         x, y = 0, 0
         try:
             while True:
                 self.walk(x,y, inertia)
                 x,y = self.hunt()
                 self.connect_hunted(x,y)
+                progress_hook(self.unconnected_cells())
         except DeadEnd:
             pass
 
+        progress_hook(self.unconnected_cells())
 
     #------------------------------
     # Random walk routines
