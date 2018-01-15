@@ -343,9 +343,9 @@ def main():
             margins_to_scale(*(args.margins + args.paper_size)),
             frameon=False)
 
-        plot_maze(ax, mz)#,
-                  #plt.imread(resource_stream('maze.resources.images', 'smiley.png')),
-                  #plt.imread(resource_stream('maze.resources.images', 'target.png')))
+        plot_maze(ax, mz,
+                  plt.imread(resource_stream('maze.resources.images', 'smiley.png')),
+                  plt.imread(resource_stream('maze.resources.images', 'target.png')))
 
         pp.savefig(fig)
     pp.close()

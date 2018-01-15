@@ -8,6 +8,11 @@ setup(
     author_email='jeni@borkbork.org',
     url='',
     license='',
+    install_requires=[
+        'matplotlib',
+        'PaperSize',
+        'tqdm'
+    ],
     packages=find_packages(
         exclude=['venv']
     ),
