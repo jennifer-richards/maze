@@ -10,45 +10,157 @@ from tqdm import tqdm
 import maze
 
 
-def plot_maze(ax, mz, start_image=None, end_image=None):
-    """Plot a maze."""
+class Plotter(object):
+    def __init__(self,
+                 mz,
+                 tile_width=1, tile_height=1,
+                 start_image=None,
+                 end_image=None):
+        self.maze = mz
+        self.tile_width = tile_width
+        self.tile_height = tile_height
+        self.start_image = start_image
+        self.end_image = end_image
 
-    def _simplify_segments(s, progress_hook=None):
+        # computed properties
+        self.surf_width = self.maze.width * self.tile_width
+        self.surf_height = self.maze.height * self.tile_height
+
+        
+    def plot_maze(self, ax):
+        """Plot a maze."""
+    
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        segments = self.generate_segments()
+        
+        with ProgressBar(desc="Simplifying", total=len(segments)) as prog_bar:
+            self.simplify_segments(segments, prog_bar.update)
+    
+        segments.sort(key=lambda x:len(x))
+    
+        for seg in ProgressBar(segments, desc="Plotting walls"):
+            x=[s[0] for s in seg]
+            y=[s[1] for s in seg]
+            ax.plot(x, y, 'k-')
+        ax.set_xlim(-self.tile_width,self.surf_width+self.tile_width)
+        ax.set_ylim(self.surf_height+self.tile_height, -self.tile_height)
+    
+        if self.start_image is not None:
+            img_width=self.start_image.shape[0]
+            img_height=self.start_image.shape[1]
+            zoom=50*min(abs(float(self.tile_width)/img_width),
+                        abs(float(self.tile_height)/img_height))
+            #print img_width, zoom
+            ax.add_artist(AnnotationBbox(OffsetImage(self.start_image,
+                                                     zoom=zoom),
+                                         (self.tile_width*0.5, self.tile_height*0.5),
+                                         frameon=False))
+        if self.end_image is not None:
+            img_width=self.end_image.shape[0]
+            img_height=self.end_image.shape[1]
+            zoom=50*min(abs(float(self.tile_width)/img_width),
+                        abs(float(self.tile_height)/img_height))
+            #print img_width, zoom
+            ax.add_artist(AnnotationBbox(OffsetImage(self.end_image,
+                                                     zoom=zoom),
+                                         (self.surf_width-self.tile_width*0.5, self.surf_height-self.tile_height*0.5),
+                                         frameon=False))
+    #    ax.text(self.surf_width-0.5*self.tile_width, self.surf_height-0.5*self.tile_height, "End",
+    #            ha='center', va='center', size='smaller')
+
+    def generate_segments(self):
+        segments = []
+        with ProgressBar(desc="Generating walls",
+                         total=self.maze.height + self.maze.width - 2,
+                         mode="increment") as prog_bar:
+            # plot horizontal lines (no need to plot top line---that is
+            # the border)
+            for y in range(1, self.maze.height):
+                prog_bar.update()
+                x0 = 0
+                line_active = False
+                for x in range(0, self.maze.width):
+                    if (self.maze.grid[y][x] & self.maze.door["N"]) == 0:
+                        # no door North; be sure a line is started
+                        line_active = True
+                    else:
+                        # door North; draw a line if needed
+                        if line_active:
+                            segments.append([(x0 * self.tile_width, y * self.tile_height),
+                                             (x * self.tile_width, y * self.tile_height)])
+                            line_active = False
+                        x0 = x + 1
+                if line_active:
+                    segments.append([(x0 * self.tile_width, y * self.tile_height),
+                                     (self.surf_width, y * self.tile_height)])
+
+            # plot vertical lines (no need to plot left line---that is
+            # the border)
+            for x in range(1, self.maze.width):
+                prog_bar.update()
+                y0 = 0
+                line_active = False
+                for y in range(0, self.maze.height):
+                    if (self.maze.grid[y][x] & self.maze.door["W"]) == 0:
+                        # no door West; be sure a line is started
+                        line_active = True
+                    else:
+                        # door West; draw a line if needed
+                        if line_active:
+                            segments.append([(x * self.tile_width, y0 * self.tile_height),
+                                             (x * self.tile_width, y * self.tile_height)])
+                            line_active = False
+                        y0 = y + 1
+                if line_active:
+                    segments.append([(x * self.tile_width, y0 * self.tile_height),
+                                     (x * self.tile_width, self.surf_height)])
+
+        segments.append([(0, 0), (self.surf_width, 0)])
+        segments.append([(self.surf_width, 0), (self.surf_width, self.surf_height)])
+        segments.append([(0, 0), (0, self.surf_height)])
+        segments.append([(0, self.surf_height), (self.surf_width, self.surf_height)])
+        return segments
+
+    def simplify_segments(self, s, progress_hook=None):
         """Reduce the number of individual lines."""
-        ii=0
-        max_ii=0
+        ii = 0
+        max_ii = 0
         while ii < len(s):
-            if (ii>max_ii):
-                progress_hook(len(s)-max_ii)
-                max_ii=ii
-            starts=[seg[0] for seg in s]
-            ends=[seg[-1] for seg in s]
+            if (ii > max_ii):
+                progress_hook(len(s) - max_ii)
+                max_ii = ii
+            starts = [seg[0] for seg in s]
+            ends = [seg[-1] for seg in s]
 
-            this_start=s[ii][0]
-            this_end=s[ii][-1]
+            this_start = s[ii][0]
+            this_end = s[ii][-1]
             try:
-                jj=starts.index(this_end) # finds first match
-                if ii==jj:
+                jj = starts.index(this_end)  # finds first match
+                if ii == jj:
                     raise ValueError()
                 s[ii].extend(s[jj][1:])
                 starts.pop(jj)
                 ends.pop(jj)
                 s.pop(jj)
-                ii=0
+                ii = 0
                 continue
             except ValueError:
                 pass
 
             # match end to start
             try:
-                jj=ends.index(this_start) # finds first match
-                if ii==jj:
+                jj = ends.index(this_start)  # finds first match
+                if ii == jj:
                     raise ValueError()
-                s[ii]=s[jj]+s[ii][1:]
+                s[ii] = s[jj] + s[ii][1:]
                 starts.pop(jj)
                 ends.pop(jj)
                 s.pop(jj)
-                ii=0
+                ii = 0
                 continue
             except ValueError:
                 pass
@@ -56,13 +168,13 @@ def plot_maze(ax, mz, start_image=None, end_image=None):
             # match start to start
             try:
                 # don't match self
-                jj=ii+1+starts[ii+1:].index(this_start) # finds first match
+                jj = ii + 1 + starts[ii + 1:].index(this_start)  # finds first match
                 s[ii].reverse()
-                s[ii].extend(s[jj][1:]) # reverse one of them
+                s[ii].extend(s[jj][1:])  # reverse one of them
                 starts.pop(jj)
                 ends.pop(jj)
                 s.pop(jj)
-                ii=0
+                ii = 0
                 continue
             except ValueError:
                 pass
@@ -70,113 +182,18 @@ def plot_maze(ax, mz, start_image=None, end_image=None):
             # match end to end
             try:
                 # don't match self
-                jj=ii+1+ends[ii+1:].index(this_end) # finds first match
+                jj = ii + 1 + ends[ii + 1:].index(this_end)  # finds first match
                 s[ii].extend(s[jj][::-1])
                 starts.pop(jj)
                 ends.pop(jj)
                 s.pop(jj)
-                ii=0
+                ii = 0
                 continue
             except ValueError:
-                ii+=1
+                ii += 1
 
         progress_hook(0)
 
-    ax.get_xaxis().set_visible(False)
-    ax.get_yaxis().set_visible(False)
-    ax.set_xticks([])
-    ax.set_yticks([])
-
-    tile_width = 1
-    tile_height = -1
-    surf_width=mz.width*tile_width
-    surf_height=mz.height*tile_height
-
-    segments = []
-    with ProgressBar(desc="Generating walls",
-                     total=mz.height+mz.width-2,
-                     mode="increment") as prog_bar:
-        # plot horizontal lines (no need to plot top line---that is
-        # the border)
-        for y in range(1,mz.height):
-            prog_bar.update()
-            x0 = 0
-            line_active = False
-            for x in range(0, mz.width):
-                if (mz.grid[y][x] & mz.door["N"]) == 0:
-                    # no door North; be sure a line is started
-                    line_active = True
-                else:
-                    # door North; draw a line if needed
-                    if line_active:
-                        segments.append( [(x0*tile_width, y*tile_height),
-                                          (x*tile_width, y*tile_height)] )
-                        line_active = False
-                    x0 = x+1
-            if line_active:
-                segments.append( [(x0*tile_width, y*tile_height),
-                                  (surf_width, y*tile_height)] )
-
-        # plot vertical lines (no need to plot left line---that is
-        # the border)
-        for x in range(1,mz.width):
-            prog_bar.update()
-            y0 = 0
-            line_active = False
-            for y in range(0, mz.height):
-                if (mz.grid[y][x] & mz.door["W"]) == 0:
-                    # no door West; be sure a line is started
-                    line_active = True
-                else:
-                    # door West; draw a line if needed
-                    if line_active:
-                        segments.append( [(x*tile_width, y0*tile_height),
-                                          (x*tile_width, y*tile_height)] )
-                        line_active = False
-                    y0 = y+1
-            if line_active:
-                segments.append( [(x*tile_width, y0*tile_height),
-                                  (x*tile_width, surf_height)] )
-
-    segments.append( [(0, 0), (surf_width, 0)] )
-    segments.append( [(surf_width, 0), (surf_width, surf_height)] )
-    segments.append( [(0, 0), (0, surf_height)] )
-    segments.append( [(0, surf_height), (surf_width, surf_height)] )
-
-    with ProgressBar(desc="Simplifying", total=len(segments)) as prog_bar:
-        _simplify_segments(segments, prog_bar.update)
-
-    segments.sort(key=lambda x:len(x))
-
-    for seg in ProgressBar(segments, desc="Plotting walls"):
-        x=[s[0] for s in seg]
-        y=[s[1] for s in seg]
-        ax.plot(x, y, 'k-')
-    ax.set_xlim(-tile_width,surf_width+tile_width)
-    ax.set_ylim(surf_height+tile_height, -tile_height)
-
-    if start_image is not None:
-        img_width=start_image.shape[0]
-        img_height=start_image.shape[1]
-        zoom=50*min(abs(float(tile_width)/img_width),
-                 abs(float(tile_height)/img_height))
-        #print img_width, zoom
-        ax.add_artist(AnnotationBbox(OffsetImage(start_image,
-                                                 zoom=zoom),
-                                     (tile_width*0.5, tile_height*0.5),
-                                     frameon=False))
-    if end_image is not None:
-        img_width=end_image.shape[0]
-        img_height=end_image.shape[1]
-        zoom=50*min(abs(float(tile_width)/img_width),
-                 abs(float(tile_height)/img_height))
-        #print img_width, zoom
-        ax.add_artist(AnnotationBbox(OffsetImage(end_image,
-                                                 zoom=zoom),
-                                     (surf_width-tile_width*0.5, surf_height-tile_height*0.5),
-                                     frameon=False))
-#    ax.text(surf_width-0.5*tile_width, surf_height-0.5*tile_height, "End",
-#            ha='center', va='center', size='smaller')
 
 def parse_maze_size(s):
     """Parse a maze size string into a tuple
@@ -349,10 +366,10 @@ def main():
             margins_to_scale(*(args.margins + args.paper_size)),
             frameon=False)
 
-        plot_maze(ax, mz,
-                  plt.imread(resource_stream('maze.resources.images', 'smiley.png')),
-                  plt.imread(resource_stream('maze.resources.images', 'target.png')))
-
+        plotter = Plotter(mz,
+                          start_image=plt.imread(resource_stream('maze.resources.images', 'smiley.png')),
+                          end_image=plt.imread(resource_stream('maze.resources.images', 'target.png')))
+        plotter.plot_maze(ax)
         pp.savefig(fig)
     pp.close()
 

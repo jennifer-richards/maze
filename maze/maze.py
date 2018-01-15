@@ -118,11 +118,13 @@ class Maze:
                 self.walk(x,y, inertia)
                 x,y = self.hunt()
                 self.connect_hunted(x,y)
-                progress_hook(self.unconnected_cells())
+                if progress_hook is not None:
+                    progress_hook(self.unconnected_cells())
         except DeadEnd:
             pass
 
-        progress_hook(self.unconnected_cells())
+        if progress_hook is not None:
+            progress_hook(self.unconnected_cells())
 
     #------------------------------
     # Random walk routines
