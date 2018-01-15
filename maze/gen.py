@@ -275,9 +275,6 @@ def main():
     parser.add_argument("--seed", type=int, dest="seed", default=None)
     args=parser.parse_args()
 
-    print args
-    print margins_to_scale(*(args.margins + args.paper_size))
-
     if args.seed is not None:
         import random
         random.seed(args.seed)
