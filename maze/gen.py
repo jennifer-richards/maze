@@ -4,10 +4,10 @@ from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from argparse import ArgumentParser
-from pkg_resources import resource_stream
+from importlib import resources as importlib_resources
 import papersize
 from tqdm import tqdm
-import maze
+from .maze import Maze
 
 
 class Plotter(object):
@@ -225,7 +225,7 @@ def parse_paper_size(s):
     :return: 2-element tuple, (width, height) in inches
     """
     (w,h) = papersize.parse_papersize(s, 'in')
-    return map(float, [w, h]) # instead of Decimal
+    return [float(w), float(h)]  # instead of Decimal
 
 def parse_margin(s):
     """Parse a margin specification
@@ -251,7 +251,7 @@ def parse_margin(s):
     else:
         raise ValueError("Expected 1, 2, or 4 margin specifications")
 
-    return map(float, (left, right, top, bottom))
+    return [float(x) for x in (left, right, top, bottom)]
 
 def margins_to_scale(left, right, top, bottom, width, height):
     """Convert linear margins to matplotlib axis scale
@@ -281,7 +281,7 @@ class ProgressBar(tqdm):
         self.mode=kwargs["mode"]
         del(kwargs["mode"])
 
-        if kwargs.has_key('desc'):
+        if "desk" in kwargs:
             kwargs['desc'] = self._fix_desc_width(kwargs['desc'])
 
         kwargs.setdefault("bar_format", "{l_bar}{bar}") # change the default
@@ -350,12 +350,13 @@ def main():
     plt.xkcd()
     pp=PdfPages('maze.pdf')
 
+    print(f"Yurp: {args.paper_size} ({repr(args.paper_size)}")
     for nn in ProgressBar(range(args.num),
                           desc="Generating mazes",
                           bar_format="{l_bar} Completed {n_fmt}/{total_fmt} at {rate_fmt}",
                           leave=True,
                           unit="mazes"):
-        mz = maze.Maze(*args.maze_size)
+        mz = Maze(*args.maze_size)
         with ProgressBar(total=mz.total_cells(),
                          desc="Generating maze") as prog_bar:
             mz.generate(args.inertia,
@@ -366,9 +367,19 @@ def main():
             margins_to_scale(*(args.margins + args.paper_size)),
             frameon=False)
 
-        plotter = Plotter(mz,
-                          start_image=plt.imread(resource_stream('maze.resources.images', 'smiley.png')),
-                          end_image=plt.imread(resource_stream('maze.resources.images', 'target.png')))
+        plotter = Plotter(
+            mz,
+            start_image=plt.imread(
+                importlib_resources.files("maze.resources.images").joinpath(
+                    "smiley.png"
+                )
+            ),
+            end_image=plt.imread(
+                importlib_resources.files("maze.resources.images").joinpath(
+                    "target.png"
+                )
+            ),
+        )
         plotter.plot_maze(ax)
         pp.savefig(fig)
     pp.close()
